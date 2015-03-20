@@ -1,0 +1,74 @@
+---
+title: "Storm damage analysis"
+author: "Aleksey Linetskiy"
+date: "Tuesday, March 17, 2015"
+output: html_document
+---
+
+Storm damage analysis
+=====================
+
+## Synopsis ##
+
+
+## Data Processing ##
+```{r data_process}
+data <- read.csv('data/repdata_data_StormData.csv', as.is=c(2))
+data2 <- data[,c('EVTYPE','BGN_DATE','FATALITIES', 'INJURIES', 'PROPDMG', 'PROPDMGEXP', 'CROPDMG', 'CROPDMGEXP')]
+data2$propDmgMultiplier = 1
+data2[data2$PROPDMGEXP=='K', 'propDmgMultiplier'] = 1000
+data2[data2$PROPDMGEXP=='M', 'propDmgMultiplier'] = 1000000
+data2$cropDmgMultiplier = 1
+data2[data2$CROPDMGEXP=='K', 'cropDmgMultiplier'] = 1000
+data2[data2$CROPDMGEXP=='M', 'cropDmgMultiplier'] = 1000000
+data2$TotalDmg <- data2$PROPDMG*data2$propDmgMultiplier + data2$CROPDMG*data2$cropDmgMultiplier
+data2$BGN_DATE <- as.Date(data2$BGN_DATE, "%m/%d/%Y %H:%M:%S")
+data2$EVTSTR = as.character(data2$EVTYPE)
+
+
+eventNames <- data.frame(oldNames = unique(data2$EVTSTR), newNames = "", stringsAsFactors = FALSE)
+eventNames[grep("AVALANCHE", eventNames[eventNames$newNames=="",'oldNames'], ignore.case = FALSE),'newNames'] <- "AVALANCHE"
+eventNames[grepl("BLIZZARD", eventNames$oldNames , ignore.case = FALSE) & eventNames$newNames == "",'newNames'] <- "BLIZZARD"
+eventNames[grepl("COASTAL[\\s]+FLOOD", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "COASTAL FLOOD"
+eventNames[grepl("COLD|CHILL", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "COLD/WIND CHILL"
+eventNames[grepl("SLIDE", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DEBRIS FLOW"
+eventNames[grepl("FOG", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DENSE FOG"
+eventNames[grepl("SMOKE", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DENSE SMOKE"
+eventNames[grepl("DROUGHT", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DROUGHT"
+eventNames[grepl("DEV[I,E]L", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DUST DEVIL" 
+eventNames[grepl("DUST", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DUST STORM" 
+eventNames[grepl("HEAT", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "EXCESSIVE HEAT"
+eventNames[grepl("FLASH", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FLASH FLOOD"
+eventNames[grepl("LAKE.+FLOOD", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "LAKESHORE FLOOD" 
+eventNames[grepl("FLOOD", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FLOOD"
+eventNames[grepl("FROST|FREEZE", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FROST/FREEZE" 
+eventNames[grepl("CLOUD", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FUNNEL CLOUD"
+eventNames[grepl("MARINE HAIL", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE HAIL"
+eventNames[grepl("MARINE HIGH", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE HIGH WIND"
+eventNames[grepl("MARINE STRONG", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE STRONG WIND"
+eventNames[grepl("MARINE T.+WIND", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE THUNDERSTORM WIND"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+
+## Results ##
+
+
