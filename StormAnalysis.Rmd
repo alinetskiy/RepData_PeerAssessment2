@@ -1,19 +1,27 @@
 ---
-title: "Storm damage analysis"
+title: "Analysing impact of different weather events"
 author: "Aleksey Linetskiy"
 date: "Tuesday, March 17, 2015"
 output: html_document
 ---
 
-Storm damage analysis
+Analysing impact of different weather events
 =====================
 
 ## Synopsis ##
 
+The study examines data from NOAA storm database in order to identify weather events that are most harmful to population or have greatest economy effect. The analysis checks three different definitions of the most harmful events: the events with historically maximal damage, events with maximal average damage and events with highest cumulative total damage. After comparing the lists obtained by analysing data according to each definition, the author comes to a conclusion about which of the events turn out to be the most dangerous.
 
 ## Data Processing ##
-```{r data_process}
-data <- read.csv('data/repdata_data_StormData.csv', as.is=c(2))
+The research is based on the data from the NOAA storm database. Before being used for the analysis, the data was preprocessed and cleaned.
+
+For the purpose of this research, the total damage done by the weather event will be calculated as a sum of property damage and crop damage; the total physical harm will be calculated as a sum of fatalities and injuries.
+
+```{r data_process, cache=TRUE}
+library(knitr)
+
+download.file(url='http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2', destfile="data/StormData.bz2", mode='wb')
+data <- read.csv(bzfile('data/StormData.bz2'), as.is=c(2))
 data2 <- data[,c('EVTYPE','BGN_DATE','FATALITIES', 'INJURIES', 'PROPDMG', 'PROPDMGEXP', 'CROPDMG', 'CROPDMGEXP')]
 data2$propDmgMultiplier = 1
 data2[data2$PROPDMGEXP=='K', 'propDmgMultiplier'] = 1000
@@ -23,52 +31,187 @@ data2[data2$CROPDMGEXP=='K', 'cropDmgMultiplier'] = 1000
 data2[data2$CROPDMGEXP=='M', 'cropDmgMultiplier'] = 1000000
 data2$TotalDmg <- data2$PROPDMG*data2$propDmgMultiplier + data2$CROPDMG*data2$cropDmgMultiplier
 data2$BGN_DATE <- as.Date(data2$BGN_DATE, "%m/%d/%Y %H:%M:%S")
+data2$year = as.numeric(format(data2$BGN_DATE, "%Y"))
 data2$EVTSTR = as.character(data2$EVTYPE)
+data2$TotalHarm <- data2$FATALITIES+data2$INJURIES
+```
 
+The main problem with the raw data from NOAA database is the lack of uniformity in event types. There are many variations of the same event name, as well as some records which do not belong to any weather event. In order to clean the data, the event names will be matched to the ones from the list provided by the National Weather Service in the Storm Data Documentation. The events for which there is no match are converted to the "OTHER" category.
 
+``` {r data_clean, cache=TRUE}
 eventNames <- data.frame(oldNames = unique(data2$EVTSTR), newNames = "", stringsAsFactors = FALSE)
-eventNames[grep("AVALANCHE", eventNames[eventNames$newNames=="",'oldNames'], ignore.case = FALSE),'newNames'] <- "AVALANCHE"
-eventNames[grepl("BLIZZARD", eventNames$oldNames , ignore.case = FALSE) & eventNames$newNames == "",'newNames'] <- "BLIZZARD"
-eventNames[grepl("COASTAL[\\s]+FLOOD", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "COASTAL FLOOD"
-eventNames[grepl("COLD|CHILL", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "COLD/WIND CHILL"
-eventNames[grepl("SLIDE", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DEBRIS FLOW"
-eventNames[grepl("FOG", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DENSE FOG"
-eventNames[grepl("SMOKE", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DENSE SMOKE"
-eventNames[grepl("DROUGHT", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DROUGHT"
-eventNames[grepl("DEV[I,E]L", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DUST DEVIL" 
-eventNames[grepl("DUST", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DUST STORM" 
-eventNames[grepl("HEAT", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "EXCESSIVE HEAT"
-eventNames[grepl("FLASH", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FLASH FLOOD"
-eventNames[grepl("LAKE.+FLOOD", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "LAKESHORE FLOOD" 
-eventNames[grepl("FLOOD", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FLOOD"
-eventNames[grepl("FROST|FREEZE", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FROST/FREEZE" 
-eventNames[grepl("CLOUD", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FUNNEL CLOUD"
-eventNames[grepl("MARINE HAIL", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE HAIL"
-eventNames[grepl("MARINE HIGH", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE HIGH WIND"
-eventNames[grepl("MARINE STRONG", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE STRONG WIND"
-eventNames[grepl("MARINE T.+WIND", eventNames$oldNames , ignore.case = FALSE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE THUNDERSTORM WIND"
+eventNames[grepl("LOW TIDE", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "ASTRONOMICAL LOW TIDE" 
+eventNames[grep("AVALANC", eventNames[eventNames$newNames=="",'oldNames'], ignore.case = TRUE, perl=TRUE),'newNames'] <- "AVALANCHE"
+eventNames[grepl("BLIZZARD", eventNames$oldNames , ignore.case = TRUE, perl = TRUE) & eventNames$newNames == "",'newNames'] <- "BLIZZARD"
+eventNames[grepl("COASTAL[\\s]+FLOOD", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "COASTAL FLOOD"
+eventNames[grepl("COLD|CHILL", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "COLD/WIND CHILL"
+eventNames[grepl("SLIDE", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DEBRIS FLOW"
+eventNames[grepl("FOG", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DENSE FOG"
+eventNames[grepl("SMOKE", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DENSE SMOKE"
+eventNames[grepl("DROUGHT", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DROUGHT"
+eventNames[grepl("DEV[I,E]L", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DUST DEVIL" 
+eventNames[grepl("DUST", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DUST STORM" 
+eventNames[grepl("HEAT", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "EXCESSIVE HEAT"
+eventNames[grepl("FLASH", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FLASH FLOOD"
+eventNames[grepl("LAKE.+FLOOD", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "LAKESHORE FLOOD" 
+eventNames[grepl("FLOOD", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FLOOD"
+eventNames[grepl("FROST|FREEZE", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FROST/FREEZE" 
+eventNames[grepl("CLOUD", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "FUNNEL CLOUD"
+eventNames[grepl("MARINE HAIL", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE HAIL"
+eventNames[grepl("MARINE HIGH", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE HIGH WIND"
+eventNames[grepl("MARINE STRONG", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE STRONG WIND"
+eventNames[grepl("MARINE T.+WIND", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "MARINE THUNDERSTORM WIND"
+eventNames[grepl("HAIL", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "HAIL"
+eventNames[grepl("HIGH[\\s]*TEMP|WARM", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "HEAT"
+eventNames[grepl("HEAVY[\\s]+RAIN", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "HEAVY RAIN"
+eventNames[grepl("HEAVY[\\s]+SNOW", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "HEAVY SNOW" 
+eventNames[grepl("SURF", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "HIGH SURF"
+eventNames[grepl("HIGH[\\s]+WIND", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "HIGH WIND"
+eventNames[grepl("HURRI|TYPH", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames' ] <- "HURRICANE/TYPHOON" 
+eventNames[grepl("ICE[\\s]+STORM", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames' ] <- "ICE STORM"
+eventNames[grepl("LAK.+EFF", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "LAKE-EFFECT SNOW"
+eventNames[grepl("LIGHTN|LIGHTING|LIGNTNING", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "LIGHTNING"
+eventNames[grepl("RIP", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "RIP CURRENT" 
+eventNames[grepl("SLEET", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "SLEET"
+eventNames[grepl("SURGE|TIDE", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "STORM SURGE/TIDE"
+eventNames[grepl("STRONG[\\s]+WIND", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "STRONG WIND" 
+eventNames[grepl("THUN|TUNDER|TSTM|THUDER", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "THUNDERSTORM WIND"
+eventNames[grepl("TORNADO|LANDSPOUT|WHIRLWIND|TORNDAO", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "TORNADO"
+eventNames[grepl("TROPICAL[\\s]+DEPR", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "TROPICAL DEPRESSION" 
+eventNames[grepl("TROPICAL[\\s]+STORM", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "TROPICAL STORM" 
+eventNames[grepl("TSUNAMI", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "TSUNAMI" 
+eventNames[grepl("VOLC", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "VOLCANIC ASH"
+eventNames[grepl("SPOUT", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames']  <- "WATERSPOUT"
+eventNames[grepl("FIRE", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "WILDFIRE" 
+eventNames[grepl("WINTER[\\s]*STORM|SNOWSTORM", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames']  <- "WINTER STORM"
+eventNames[grepl("WINTER[\\s]*WEATHER|SNOW|ICE|ICY|COOL", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "WINTER WEATHER"
+
+# leftovers
+eventNames[grepl("WIND|WND", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "STRONG WIND" 
+eventNames[grepl("WINTRY|FREEZ|LOW[\\s]*TEM|WINTER", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "WINTER WEATHER"
+eventNames[grepl("HOT|RECORD[\\s]+TEMP", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "", 'newNames'] <- "HEAT"
+eventNames[grepl("BURST", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "HIGH WIND"
+eventNames[grepl("DROUGHT|DRY|DRIEST|LOW[\\s]*RAINFALL|BELOW[\\s]*NORMAL[\\s]*PRECIP", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "DROUGHT"
+eventNames[grepl("WET|RAIN|PRECIP|SHOWER", eventNames$oldNames , ignore.case = TRUE, perl=TRUE) & eventNames$newNames == "",'newNames'] <- "HEAVY RAIN"
+#All that was not recognized goes into "OTHER" category
+eventNames[eventNames$newNames == "", 'newNames'] <- "OTHER"
+cleanData <- merge(x=data2, y=eventNames, by.x ="EVTSTR", by.y="oldNames")
+```
+
+After the events are unified, it becomes noticeable that most of the events are not reported until 1993. (Before that year, only 3 different events are reported.) Because of that, the data before 1993 is discarded. 
+
+```{r data_cutover, cache=TRUE}
+eventTypesByYear <- aggregate (data=cleanData, newNames ~ year, function (x) length(unique(x)))
+print(eventTypesByYear)
+cleanDataCut <- cleanData[cleanData$year>=1993,]
+
+```
+
+## Analysis ##
+The question "Which weather event is the most dangerous" can be answered in several different ways. First, one can consider the events which hold the record of the damage and population harm. Then, there is a question of which events on average bring the most harm and damage. And, lastly, the cumulative damage from the events of different types can be compared in order to find out which type of the events is responsible for the greatest havoc overall.
 
 
+### Maximal damage ###
+```{r max damage}
+library(knitr)
+maxDamage <- aggregate(TotalDmg ~ newNames, cleanDataCut, max)
+maxDamage <- maxDamage[order(-maxDamage$TotalDmg),]
+kable(head(maxDamage,5)[,c(1,2)],col.names=c("Event", "Damage"), caption="5 events with the highest damage since 1993")
+
+maxHarm <- aggregate(TotalHarm ~ newNames, cleanDataCut, max)
+maxHarm <- maxHarm[order(-maxHarm$TotalHarm),]
+kable(head(maxHarm,5)[,c(1,2)], col.names=c("Event", "Deaths and injuries"), caption="5 events with the highest population harm since 1993")
+
+maxDamage$StatType <- "PROPERTY DAMAGE"
+maxHarm$StatType <- "POPULATION HARM"
+names(maxDamage) <- c("event", "damage", "stat")
+names(maxHarm) <- c("event", "damage", "stat")
+maxStats <- rbind(maxDamage, maxHarm)
+maxDamage.top10 <- head(maxDamage, 10)
+maxHarm.top10 <- head(maxHarm, 10)
+top10Events <- unique(c(maxDamage.top10$event, maxHarm.top10$event))
+
+library(ggplot2)
+g <- ggplot(data=maxStats, aes(x=factor(1), y=damage, fill=factor(event)))
+g <- g+geom_bar(width=1,stat="identity")+xlab("")+ylab("")+ggtitle("Events with maximal historical damage")
+g <- g+ facet_grid(facets=stat~., scale="free")
+g <- g+coord_polar(theta="y")
+g <- g+ scale_fill_hue(limits=top10Events, name="Events")
+g <- g+ theme(axis.ticks = element_blank(), axis.text.y=element_blank(), axis.text.x=element_blank(), panel.grid.minor=element_blank(), panel.grid.major=element_blank())
+print(g)
+```
 
 
+The tables show that the most damaging events were dealing with high winds (High Wind, Hurricane and Thunderstorm wind); Flood and Hail are also in the record table. In terms of the population damage, the record holders are ice storm and tornado, followed by flood, hurricane and heat. Quite predictably, hurricane turned out to be in the top 5 in both categories.  The chart show the distribution of the damage between the top 10 events in both damage and population harm categories.
 
 
+### Average Damage ###
 
+```{r Avg damage}
+library(knitr)
+avgDamage <- aggregate(TotalDmg ~ newNames, cleanDataCut, mean)
+avgDamage <- avgDamage[order(-avgDamage$TotalDmg),]
+kable(head(avgDamage,5)[,c(1,2)],col.names=c("Event", "Average Damage"), caption="5 events with the highest average damage since 1993")
 
+avgHarm <- aggregate(TotalHarm ~ newNames, cleanDataCut, mean)
+avgHarm <- avgHarm[order(-avgHarm$TotalHarm),]
+kable(head(avgHarm,5)[,c(1,2)], col.names=c("Event", "Average Deaths and Injuries"), caption="5 events with the highest average population harm since 1993")
 
+avgDamage$StatType <- "PROPERTY DAMAGE"
+avgHarm$StatType <- "POPULATION HARM"
+names(avgDamage) <- c("event", "damage", "stat")
+names(avgHarm) <- c("event", "damage", "stat")
+avgStats <- rbind(avgDamage, avgHarm)
+avgDamage.top10 <- head(avgDamage, 10)
+avgHarm.top10 <- head(avgHarm, 10)
+top10Events <- unique(c(avgDamage.top10$event, avgHarm.top10$event))
 
-
-
-
-
-
-
-
-
+g <- ggplot(data=avgStats, aes(x=factor(1), y=damage, fill=factor(event)))
+g <- g+geom_bar(width=1,stat="identity")+xlab("")+ylab("")+ggtitle("Events with maximal average damage")
+g <- g+ facet_grid(facets=stat~., scale="free")+scale_fill_brewer(palette="Set1")
+g <- g+coord_polar(theta="y")
+g <- g+ scale_fill_hue(limits=top10Events, name="Events")
+g <- g+ theme(axis.ticks = element_blank(), axis.text.y=element_blank(), axis.text.x=element_blank(), panel.grid.minor=element_blank(), panel.grid.major=element_blank())
+print(g)
 
 ```
 
 
+The tables show that on average the by far the most damaging event type is hurricane, the damage of which almost 7 times higher that the one of tsunami, which comes next in the list. In terms of the population damage, on the contrary, tsunami turns out to be two times more dangerous than hurricanes. The chart show the distribution of the average damage between the top 10 events in both damage and population harm categories.
+
+### Cumulative damage ###
+
+```{r cumulative damage}
+library(knitr)
+cumDamage <- aggregate(TotalDmg ~ newNames, cleanDataCut, sum)
+cumDamage <- cumDamage[order(-cumDamage$TotalDmg),]
+kable(head(cumDamage,5)[,c(1,2)],col.names=c("Event", "Total Damage"), caption="5 events with the highest cumulative damage since 1993")
+
+cumHarm <- aggregate(TotalHarm ~ newNames, cleanDataCut, sum)
+cumHarm <- cumHarm[order(-cumHarm$TotalHarm),]
+kable(head(cumHarm,5)[,c(1,2)], col.names=c("Event", "Total Harm"), caption="5 events with the highest cumulative harm since 1993")
+
+cumDamage$StatType <- "PROPERTY DAMAGE"
+cumHarm$StatType <- "POPULATION HARM"
+names(cumDamage) <- c("event", "damage", "stat")
+names(cumHarm) <- c("event", "damage", "stat")
+cumStats <- rbind(cumDamage, cumHarm)
+cumDamage.top10 <- head(cumDamage, 10)
+cumHarm.top10 <- head(cumHarm, 10)
+top10Events <- unique(c(cumDamage.top10$event, cumHarm.top10$event))
+
+g <- ggplot(data=cumStats, aes(x=factor(1), y=damage, fill=factor(event)))
+g <- g+geom_bar(width=1,stat="identity")+xlab("")+ylab("")+ggtitle("Events with maximal cumulative damage")
+g <- g+ facet_grid(facets=stat~., scale="free")
+g <- g+coord_polar(theta="y")+scale_fill_brewer(palette="Spectral")
+g <- g+ scale_fill_hue(limits=top10Events, name="Events")
+g <- g+ theme(axis.ticks = element_blank(), axis.text.y=element_blank(), axis.text.x=element_blank(), panel.grid.minor=element_blank(), panel.grid.major=element_blank())
+print(g)
+
+```
+
+Cumulative damage is the total damage done by a certain event type in all years. As one can see, floods turn out to be the source of the most damage. Tornadoes are next in the list - but they hold the first place in terms of the damage to population. The chart show the distribution of the cumulative damage between the top 10 events in both damage and population harm categories.
+
 ## Results ##
 
-
+On average, the most damaging weather events for the economy are hurricanes, and the events with most deaths and injuries are tsunamis. However it is important to remember that some events, although not that dangerous on average, ocasionally can be really catastrophic, and, in the long run, can cause even more damage and destruction. For property damage such events are floods (both regular and flash), tornadoes and hail. In regards with deaths and injuries, besides tornadoes and floods, excessive heat in the long run causes a lot of harm. It is important also to remember that the historically maximal damage was caused by a event classified as "strong wind", and maximal harm to the population was caused by an ice storm.
